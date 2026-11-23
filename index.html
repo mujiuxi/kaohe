@@ -635,7 +635,7 @@ function renderSummary() {
 
 // ===== 云端同步（GitHub 私有仓库 mujiuxi/kaohe） =====
 const CLOUD = { owner:"mujiuxi", repo:"kaohe", path:"kaohe-data.json", branch:"main",
-  token:atob("Z2l0aHViX3BhdF8xMUNWVFJaRUkwb2ZtSVNtU0gxNnJqX0xyYkY1blZyUWJtSkJUSElHMzRneml3R3M5YU5yelZFcktPbVRrM2xzZmM1UlE0R1M0SExVTEpRWjVp") };
+  token:atob("Z2l0aHViX3BhdF8xMUNWVFJaRUkwSXNCQnRmVEtHN1pIX1lWWE90WWJpcXlkV2tTemVMeHlOSHJySTdwTFhNRXpjM0VyMk84c2x6RlFSVUtNWkVWSDNXMHN3UlA3") };
 let cloudSha = null;
 function ghHeaders(){ return {"Authorization":"Bearer "+CLOUD.token, "Accept":"application/vnd.github+json"}; }
 // ===== 数据加解密（AES-GCM，数据上云前加密，公开仓库下裸看数据文件为乱码） =====
