@@ -634,10 +634,14 @@ function renderSummary() {
 }
 
 // ===== 云端同步（GitHub 私有仓库 mujiuxi/kaohe） =====
-const CLOUD = { owner:"mujiuxi", repo:"kaohe", path:"kaohe-data.json", branch:"main",
-  token:atob("Z2l0aHViX3BhdF8xMUNWVFJaRUkwSXNCQnRmVEtHN1pIX1lWWE90WWJpcXlkV2tTemVMeHlOSHJySTdwTFhNRXpjM0VyMk84c2x6RlFSVUtNWkVWSDNXMHN3UlA3") };
+const CLOUD = { owner:"mujiuxi", repo:"kaohe", path:"kaohe-data.json", branch:"main" };
 let cloudSha = null;
-function ghHeaders(){ return {"Authorization":"Bearer "+CLOUD.token, "Accept":"application/vnd.github+json"}; }
+function ghHeaders(write){
+  const h = {"Accept":"application/vnd.github+json"};
+  const t = write ? localStorage.getItem("kaohe_sync_token") : null;
+  if(t) h["Authorization"] = "Bearer "+t;
+  return h;
+}
 // ===== 数据加解密（AES-GCM，数据上云前加密，公开仓库下裸看数据文件为乱码） =====
 const ENC_PASS = "kh$2026$sync$mujiuxi";
 async function deriveKey(){
@@ -665,11 +669,10 @@ function setSyncStatus(txt, ok){
 async function loadCloud(quiet){
   try{
     setSyncStatus("⏳ 正在从云端获取最新数据…");
-    const r = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/${CLOUD.path}?t=${Date.now()}`, {headers:ghHeaders()});
+    const r = await fetch(`https://raw.githubusercontent.com/${CLOUD.owner}/${CLOUD.repo}/${CLOUD.branch}/${CLOUD.path}?t=${Date.now()}`);
     if(r.status===404){ setSyncStatus("云端暂无数据，已使用本地数据", true); return; }
     if(!r.ok) throw new Error("HTTP "+r.status);
-    const j = await r.json(); cloudSha = j.sha;
-    const raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(j.content.replace(/\s/g,"")), c=>c.charCodeAt(0))));
+    const raw = await r.json();
     const json = raw && raw.encrypted ? await decJSON(raw) : raw;
     data = json;
     data.months = json.months || Array.from({length:9},(_,i)=>i+1);
@@ -698,12 +701,22 @@ async function syncToCloud(){
     payload._updated = Date.now(); data._updated = payload._updated;
     const enc = await encJSON(payload);
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(enc))));
-    const body = { message:"更新考核数据 "+new Date().toLocaleString("zh-CN"), content:content, branch:CLOUD.branch };
-    if(cloudSha) body.sha = cloudSha;
-    const r = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/${CLOUD.path}`, {method:"PUT", headers:Object.assign(ghHeaders(), {"Content-Type":"application/json"}), body: JSON.stringify(body)});
-    const j = await r.json();
-    if(r.status===200 || r.status===201){ cloudSha = j.content.sha; setSyncStatus("✅ 已同步云端，所有人刷新即见最新", true); }
-    else throw new Error(j.message || ("HTTP "+r.status));
+    if(!localStorage.getItem("kaohe_sync_token")){
+      const t = prompt("首次同步需要粘贴一次 GitHub 令牌（github_pat_ 或 ghp_ 开头）\n令牌只保存在本机浏览器，不会进入网页文件");
+      if(!t){ setSyncStatus("⚠ 未输入令牌，数据已存本机，未同步云端", false); return; }
+      localStorage.setItem("kaohe_sync_token", t.trim());
+    }
+    try{
+      const gr = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/${CLOUD.path}`, {headers:ghHeaders(true)});
+      if(gr.ok) cloudSha = (await gr.json()).sha;
+      const body = { message:"更新考核数据 "+new Date().toLocaleString("zh-CN"), content:content, branch:CLOUD.branch };
+      if(cloudSha) body.sha = cloudSha;
+      const r = await fetch(`https://api.github.com/repos/${CLOUD.owner}/${CLOUD.repo}/contents/${CLOUD.path}`, {method:"PUT", headers:Object.assign(ghHeaders(true), {"Content-Type":"application/json"}), body: JSON.stringify(body)});
+      const j = await r.json();
+      if(r.status===200 || r.status===201){ cloudSha = j.content.sha; setSyncStatus("✅ 已同步云端，所有人刷新即见最新", true); }
+      else if(r.status===401 || r.status===403){ localStorage.removeItem("kaohe_sync_token"); throw new Error("令牌无效或过期，请重新同步（会再次提示输入）"); }
+      else throw new Error(j.message || ("HTTP "+r.status));
+    }catch(err){ throw err; }
   }catch(e){ setSyncStatus("⚠ 云端同步失败："+e.message+"（数据已存本机）", false); }
 }
 
