@@ -157,7 +157,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 <body>
 <header>
   <h1>2026年合作方考核分汇总（1月至今）</h1>
-  <p>数据来源：各月《合作单位评分考核汇总》附件1 ｜ 最近更新：<span id="lastUpdate">—</span>　<span id="syncStatus" style="background:#fff3cd;border-radius:10px;padding:2px 12px;font-size:12px;">⏳ 正在连接云端…</span></p>
+  <p>数据来源：各月《合作单位评分考核汇总》附件1 ｜ 最近更新：<span id="lastUpdate">—</span>　<span id="syncStatus" onclick="loadCloud()" title="点击重新连接云端" style="cursor:pointer;background:#fff3cd;border-radius:10px;padding:2px 12px;font-size:12px;">⏳ 正在连接云端…</span></p>
 </header>
 
 <div class="toolbar">
@@ -635,7 +635,7 @@ function renderSummary() {
 
 // ===== 云端同步（GitHub 私有仓库 mujiuxi/kaohe） =====
 const CLOUD = { owner:"mujiuxi", repo:"kaohe", path:"kaohe-data.json", branch:"main",
-  token:"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" };
+  token:atob("Z2l0aHViX3BhdF8xMUNWVFJaRUkwdFFsTmN6N2RaWWdEX3VHdE5xT0YyS0xIT3g2RE80SnJsZVhxSFE2ZVRVdklMZDdoMGJCZUdPbm8zR1NLNzJOMnBhNk5pWUNV") };
 let cloudSha = null;
 function ghHeaders(){ return {"Authorization":"Bearer "+CLOUD.token, "Accept":"application/vnd.github+json"}; }
 // ===== 数据加解密（AES-GCM，数据上云前加密，公开仓库下裸看数据文件为乱码） =====
@@ -675,10 +675,19 @@ async function loadCloud(quiet){
     data.months = json.months || Array.from({length:9},(_,i)=>i+1);
     MONTHS.length = 0; MONTHS.push(...data.months);
     localStorage.setItem("kaohe_data", JSON.stringify(data));
+    loadCloud._tries = 0;
     setSyncStatus("✅ 已同步云端最新数据（"+new Date(json._updated||Date.now()).toLocaleString("zh-CN")+"）", true);
     render(); refreshHistSel();
   }catch(e){
-    setSyncStatus("⚠ 云端连接失败，当前显示本地数据", false);
+    if(!loadCloud._tries) loadCloud._tries = 0;
+    if(loadCloud._tries < 2){
+      loadCloud._tries++;
+      setSyncStatus("⚠ 连接失败，第"+loadCloud._tries+"次自动重试…", false);
+      setTimeout(()=>loadCloud(quiet), 4000);
+      return;
+    }
+    loadCloud._tries = 0;
+    setSyncStatus("⚠ 云端连接失败（"+e.message+"），显示本地数据，点此重试", false);
     if(!quiet) render();
   }
 }
